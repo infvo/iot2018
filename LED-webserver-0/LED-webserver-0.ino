@@ -6,8 +6,9 @@
 
 const char* ssid = "...";            // adapt to local WiFi
 const char* password = "..."; // adapt to local WiFi
+unsigned char mac[6];
 
-const int ledPin = D3; // D3 must be LOW at reset
+const int ledPin = D5;
 bool ledOn = false;
 
 // Create an instance of the server
@@ -108,8 +109,16 @@ void setup() {
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
 
-  if (MDNS.begin("esp8266")) {
-    Serial.println("MDNS responder started");
+  WiFi.macAddress(mac);
+  Serial.print("MAC address: ");
+  for (int i = 0; i < 6; i++) {
+    Serial.print(mac[i], HEX);
+  }
+  Serial.println();
+  String domainname = "esp8266-" + String(mac[4] * 256 + mac[5], HEX);
+  if (MDNS.begin(domainname.c_str())) {
+    Serial.print("mDNS responder started for: ");
+    Serial.println(domainname);
   }
 
   server.on("/", handleRoot);
