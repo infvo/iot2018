@@ -14,7 +14,6 @@ const char* password = "..."; // adapt to local WiFi
 unsigned char mac[6];
 
 const int ledPin = D5;
-bool ledOn = false;
 
 // Create an instance of the server
 // specify the port to listen on as an argument
@@ -23,13 +22,13 @@ ESP8266WebServer server(80);
 Adafruit_BME280 bme; // I2C
 
 void sendHTMLdoc() {
-  digitalWrite (LED_BUILTIN, LOW );
+  digitalWrite(LED_BUILTIN, LOW);
   const char *red = "red";
   const char *black = "black";
   const char *color;
-  char buffer[500];
+  char buffer[800];
 
-  if (ledOn) {
+  if (digitalRead(ledPin)) {
     color = red;
   } else {
     color = black;
@@ -38,41 +37,58 @@ void sendHTMLdoc() {
   float temp = bme.readTemperature();
   float pres = bme.readPressure() / 100;
 
-  snprintf ( buffer, 500,
+  snprintf ( buffer, 800,
 "<html>\n\
-  <head> <title>ESP8266 Sensor server</title> </head>\n\
-  <body> <h1>ESP8266 Sensor & Led control</h1>\n\
+  <head>\n\
+      <title>ESP8266 Sensor server</title>\n\
+      <style>\n\
+        table, th, td {border: 1px;}\n\
+        table {border-collapse: collapse}\n\
+      </style>\n\
+  </head>\n\
+  <body> <h1>ESP8266 control</h1>\n\
     <p>\n\
-      <a href=\"/ledon\"> On </a> &gt;\n\
-      <span style=\"font-weight:bold;color:%s;\"> [[LED]] </span> &lt;\n\
-      <a href=\"/ledoff\"> Off </a>\n\
+      <form action=\"/leds/0\" method=\"post\">\n\
+         <button type=\"submit\" name=\"on\" value=\"1\">On</button>\n\
+         <span style=\"font-weight:bold;color:%s;\"> [[LED]] </span>\n\
+         <button type=\"submit\" name=\"on\" value=\"0\">Off</button>\n\
+      </form>\n\
     </p>\n\
-    <p>\n\
-      Temperature: %.02f &deg;C <br>\n\
-      Atm.pressure: %.02f hPa\n\
-    </p>\n\
+    <table>\n\
+        <tr><td>Temperature</td>   <td>%.02f &deg;C</td></tr>\n\
+        <tr><td>Atm.pressure</td>  <td>%.02f hPa</td> </tr>\n\
+    </table>\n\
+    <p><a href=\"/\">refresh</a></p>\n\
   </body>\n\
 </html>\n",
     color, temp, pres
   );
   server.send ( 200, "text/html", buffer );
-  digitalWrite ( LED_BUILTIN, HIGH );
+  digitalWrite(LED_BUILTIN, HIGH); 
 }
 
 void handleRoot() {
+  Serial.println("/");
   sendHTMLdoc();
 }
 
-void handleLedOn() {
-  digitalWrite(ledPin, HIGH);
-  ledOn = true;
+void handleLed0() {
+  Serial.print("/leds/0 ");
+  if (server.method() == HTTP_POST) {
+    for (uint8_t i=0; i < server.args(); i++) {
+      if (server.argName(i) == "on") {
+        String argvalue = server.arg(i);
+        Serial.print("on=");
+        Serial.println(argvalue);
+        if (argvalue == "0") {
+          digitalWrite(ledPin, LOW);          
+        } else if (argvalue == "1") {
+          digitalWrite(ledPin, HIGH);
+        }
+      }
+    }  
+  }
   sendHTMLdoc();
-}
-
-void handleLedOff() {
-  digitalWrite(ledPin, LOW);
-  ledOn = false;
-  sendHTMLdoc();  
 }
 
 void handleNotFound(){
@@ -134,7 +150,11 @@ void setup() {
   WiFi.macAddress(mac);
   Serial.print("MAC address: ");
   for (int i = 0; i < 6; i++) {
-    Serial.print(mac[i], HEX);
+    int macbyte = mac[i];
+    if (macbyte < 16) {
+      Serial.print('0');
+    }
+    Serial.print(macbyte, HEX);
   }
   Serial.println();
   String domainname = "esp8266-" + String(mac[4] * 256 + mac[5], HEX);
@@ -144,8 +164,7 @@ void setup() {
   }
 
   server.on("/", handleRoot);
-  server.on("/ledon", handleLedOn);
-  server.on("/ledoff", handleLedOff);
+  server.on("/leds/0", handleLed0);
   server.onNotFound(handleNotFound);
     
   // Start the server
