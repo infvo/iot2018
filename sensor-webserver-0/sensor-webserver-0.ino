@@ -21,8 +21,16 @@ ESP8266WebServer server(80);
 
 Adafruit_BME280 bme; // I2C
 
+String ipAddress2String(const IPAddress& ipAddress)
+{
+  return String(ipAddress[0]) + String(".") +\
+  String(ipAddress[1]) + String(".") +\
+  String(ipAddress[2]) + String(".") +\
+  String(ipAddress[3])  ; 
+}
+
 void sendHTMLdoc() {
-  digitalWrite(LED_BUILTIN, LOW);
+  digitalWrite (LED_BUILTIN, LOW );
   const char *red = "red";
   const char *black = "black";
   const char *color;
@@ -41,10 +49,6 @@ void sendHTMLdoc() {
 "<html>\n\
   <head>\n\
       <title>ESP8266 Sensor server</title>\n\
-      <style>\n\
-        table, th, td {border: 1px;}\n\
-        table {border-collapse: collapse}\n\
-      </style>\n\
   </head>\n\
   <body> <h1>ESP8266 control</h1>\n\
     <p>\n\
@@ -57,14 +61,15 @@ void sendHTMLdoc() {
     <table>\n\
         <tr><td>Temperature</td>   <td>%.02f &deg;C</td></tr>\n\
         <tr><td>Atm.pressure</td>  <td>%.02f hPa</td> </tr>\n\
+        <tr><td>IP address</td>    <td>%s</td> </tr>\n\
     </table>\n\
     <p><a href=\"/\">refresh</a></p>\n\
   </body>\n\
 </html>\n",
-    color, temp, pres
+    color, temp, pres, ipAddress2String(WiFi.localIP()).c_str()
   );
   server.send ( 200, "text/html", buffer );
-  digitalWrite(LED_BUILTIN, HIGH); 
+  digitalWrite ( LED_BUILTIN, HIGH ); 
 }
 
 void handleRoot() {
