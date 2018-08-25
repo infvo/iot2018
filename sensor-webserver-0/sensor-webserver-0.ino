@@ -13,7 +13,7 @@ const char* ssid = "...";            // adapt to local WiFi
 const char* password = "..."; // adapt to local WiFi
 unsigned char mac[6];
 
-const int ledPin = D5;
+const int ledPin = D3;
 
 // Create an instance of the server
 // specify the port to listen on as an argument

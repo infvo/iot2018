@@ -14,10 +14,10 @@
 #include <Adafruit_BME280.h>
 
 // i/o pin map
-const int led0 = D5;
-const int led1 = D6;
-const int button0 = D3; 
-const int button1 = D4;
+const int led0 = D3;
+const int led1 = D5;
+const int button0 = D6; 
+const int button1 = D7;
 
 Adafruit_BME280 bme; // I2C
 
@@ -169,7 +169,7 @@ void setup() {
   Wire.begin(D2, D1); // SDA, SCL: GPIO nrs - D2(GPIO4), D1(GPIO5) - I2C for BMP
   Serial.begin(115200);
   Serial.println();
-  Serial.println("[iot2018-mqtt-node (bme, Aloha, infvopedia)]");
+  Serial.println("[iot2018-mqtt-node (bme)]");
   while (!bme.begin(0x76)) {
     digitalWrite(LED_BUILTIN, LOW); // active low: LED ON 
     delay(100);
