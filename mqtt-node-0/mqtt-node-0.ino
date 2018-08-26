@@ -43,7 +43,7 @@ String actuatorTopic;
 unsigned int counter = 0;
 
 long sensor1TimerStart = 0;
-long sensor1TimerPeriod = 60000L; // in millisecs
+long sensor1TimerPeriod = 30000L; // in millisecs
 
 // JSON
 
