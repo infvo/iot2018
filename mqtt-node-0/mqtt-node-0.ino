@@ -45,15 +45,28 @@ unsigned int counter = 0;
 long sensor1TimerStart = 0;
 long sensor1TimerPeriod = 30000L; // in millisecs
 
+long button0TimerStart = 0;
+long button0TimerPeriod = 1000L; // in millisecs
+long button1TimerStart = 0;
+long button1TimerPeriod = 1000L; // in millisecs  
+
 // JSON
 
 void sensor0Publish() {
-  StaticJsonBuffer<200> jsonBuffer;
+  StaticJsonBuffer<400> jsonBuffer;
   JsonObject& root = jsonBuffer.createObject();
   String msg;
-  root["id"] = nodeID;
-  root["sensor0"] = digitalRead(button0);
-  root["localtime"] = millis();
+  root["nodeid"] = nodeID;
+  root["counter"] = counter;
+  counter = counter + 1;
+
+  JsonObject& payload = root.createNestedObject("payload");
+  
+  JsonObject& channel2 = payload.createNestedObject("2");
+  channel2["dIn"] = digitalRead(button0);   
+  JsonObject& channel3 = payload.createNestedObject("3");
+  channel3["dIn"] = digitalRead(button1);   
+
   root.printTo(msg);
   Serial.println(msg);
   client.publish(sensorTopic.c_str(), msg.c_str());
@@ -194,10 +207,23 @@ void loop() {
   }
   client.loop();
 
-  //if (digitalRead(button0)) {
-  //  sensor0Publish();
-  //  delay(200); // limit button repetition rate
-  //}
+  if ((millis() - button0TimerStart >= button0TimerPeriod) && 
+      (digitalRead(button0) == 1)) {
+    delay(2);
+    if (digitalRead(button0) == 1) {
+      sensor0Publish();
+      button0TimerStart = millis();    
+    }     
+  }
+
+  if ((millis() - button1TimerStart >= button1TimerPeriod) && 
+      (digitalRead(button1) == 1)) {
+    delay(2);
+    if (digitalRead(button1) == 1) {
+      sensor0Publish();
+      button1TimerStart = millis();    
+    }     
+  }
 
   if (millis() -  sensor1TimerStart >= sensor1TimerPeriod) {
     sensor1Publish();
