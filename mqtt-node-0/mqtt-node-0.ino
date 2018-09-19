@@ -109,6 +109,7 @@ void networkSetup() {
   Serial.print("Connecting to ");
   Serial.print(ssid);
 
+  WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   
   while (WiFi.status() != WL_CONNECTED) {
