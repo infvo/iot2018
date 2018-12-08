@@ -52,8 +52,8 @@ bool sleeping = false;
 // the bytes. For TTN issued EUIs the last bytes should be 0xD5, 0xB3,
 // 0x70.
 
-static const u1_t DEVEUI[8]  = { 0x00, 0xAA, 0x51, 0x99, 0xBB, 0xAA, 0x51, 0x99  };
-static const u1_t APPEUI[8] = { 0xB6, 0xA4, 0xC4, 0xD0, 0x7E, 0xD5, 0xB3, 0x70 };
+static const u1_t DEVEUI[8]  = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00  };
+static const u1_t APPEUI[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
 // This key should be in big endian format (or, since it is not really a
 // number but a block of memory, endianness does not really apply). In
@@ -221,6 +221,7 @@ void do_send(osjob_t* j) {
 static void initfunc (osjob_t* j) {
     // reset MAC state
     LMIC_reset();
+    LMIC_setClockError(MAX_CLOCK_ERROR * 10 / 100);  
     // start joining
     LMIC_startJoining();
     // init done - onEvent() callback will be invoked...
@@ -246,11 +247,12 @@ void setup()
   // if LED is connected to pin 10, it has to be defined before any SPI initialization else
   // it will be used as SS (Slave Select) and controlled by the SPI module
       pinMode(LedPin, OUTPUT);
-  LMIC_setClockError(MAX_CLOCK_ERROR * 10 / 100);
+
   os_init();
   // Reset the MAC state. Session and pending data transfers will be discarded.
   os_setCallback(&initjob, initfunc);
   LMIC_reset();
+  LMIC_setClockError(MAX_CLOCK_ERROR * 10 / 100);  
 }
 
 unsigned long time;
