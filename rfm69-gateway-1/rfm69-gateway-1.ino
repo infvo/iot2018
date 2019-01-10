@@ -22,17 +22,16 @@
 // Configuration
 String wifiSsid = "";
 String wifiPassword = "";
-boolean mqttActive = false;
-const int mqttPort = 1883;
 String mqttServer = "";
 String mqttUser = "";
 String mqttPassword = "";
 
+const int mqttPort = 1883; // not yet in configuration
+boolean mqttActive = false;
+
 // i/o pin map
 const int led0 = D3;
-const int led1 = D5;
-const int button0 = D6; 
-const int button1 = D7;
+const int button0 = D2;  // == SDA/GPIO4, with pull-up 
 
 // WiFi
 unsigned char mac[6];
@@ -481,9 +480,8 @@ void rfSetup() {
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);     // Initialize the BUILTIN_LED pin as an output
   pinMode(led0, OUTPUT);
-  pinMode(led1, OUTPUT);
   pinMode(button0, INPUT);
-  if (digitalRead(button0) == HIGH) {
+  if (digitalRead(button0) == LOW) {  // active low button!
     digitalWrite(led0, HIGH);
   }
 
@@ -514,8 +512,8 @@ void setup() {
   nodeID = String(mac[4] * 256 + mac[5], HEX);
 
 // start as wifi access point or as station
-  if (digitalRead(button0) || !config_OK) {
-    digitalWrite(led1, HIGH);
+  if (digitalRead(button0) == LOW || !config_OK) {
+    digitalWrite(led0, LOW);
     setupAP();
     mqttActive = false;  
   } else {

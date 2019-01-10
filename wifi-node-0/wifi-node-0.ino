@@ -520,7 +520,6 @@ void setup() {
 
 void loop() {
   server.handleClient();
-
   if (mqttActive) {
     if (!client.connected()) {
       Serial.print("...not connected... ");
