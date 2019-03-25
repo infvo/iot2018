@@ -338,7 +338,7 @@ void sensor1Display() {
   display.setCursor(0,0);
   display.print("tmp:");
   display.println(bme.readTemperature(), 1);
-  display.print("bar:");
+  display.print("air:");
   display.println(bme.readPressure()/100, 1);
   display.print("hum:");
   display.print((int) bme.readHumidity());
@@ -487,7 +487,7 @@ void setupDisplay() {
 //  display.setTextSize(1); (is default)
    display.setTextColor(WHITE);
    display.setCursor(0,0);
-   display.println("wifi-node-xd 190319");
+   display.println("wifi-node-xd 190323");
    display.display();
 }
 
@@ -500,7 +500,7 @@ void setup() {
   delay(1000);
   Serial.begin(115200);
   Serial.println();
-  Serial.println("[wifi-node-xd 190322]");
+  Serial.println("[wifi-node-xd 190323]");
   setupDisplay();
 
   Wire.begin(D2, D1); // SDA, SCL: GPIO nrs - D2(GPIO4), D1(GPIO5) - I2C for BMP
