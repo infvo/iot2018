@@ -40,6 +40,7 @@ ESP8266WebServer server(80);
 WiFiClient espClient;
 PubSubClient client(espClient);
 
+String version = "wifi-node-xd 190326";
 String wifiSsid = "";
 String wifiPassword = "";
 boolean mqttActive = false;
@@ -487,7 +488,7 @@ void setupDisplay() {
 //  display.setTextSize(1); (is default)
    display.setTextColor(WHITE);
    display.setCursor(0,0);
-   display.println("wifi-node-xd 190323");
+   display.println(version);
    display.display();
 }
 
@@ -500,7 +501,7 @@ void setup() {
   delay(1000);
   Serial.begin(115200);
   Serial.println();
-  Serial.println("[wifi-node-xd 190323]");
+  Serial.println(version);
   setupDisplay();
 
   Wire.begin(D2, D1); // SDA, SCL: GPIO nrs - D2(GPIO4), D1(GPIO5) - I2C for BMP
@@ -535,6 +536,23 @@ void setup() {
 // start as wifi access point or as station
   if (digitalRead(button0) || !config_OK) {
     digitalWrite(led0, HIGH);
+    if (digitalRead(button1) || !SPIFFS.begin()) {
+       Serial.println();
+       Serial.println("Format file system");
+       display.clearDisplay();
+       display.setCursor(0,0);
+       display.println("Format FS");
+       display.display();       
+       SPIFFS.format();
+       if (SPIFFS.begin()) {
+         Serial.println("File system mounted");         
+       }
+       wifiSsid = "";  // clear configuration
+       wifiPassword = "";
+       mqttServer = "";
+       mqttUser = "";
+       mqttPassword = "";      
+    }
     setupAP();
     mqttActive = false;  
   } else {
