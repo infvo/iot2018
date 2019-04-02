@@ -274,6 +274,7 @@ void sensor1Publish() {
   putByte(8);
   putByte(LPP_ANALOG_INPUT);
   int light = analogRead(ldr);
+  putInt(light);
 
   printTxBuf(txIndex);
   rf.send(gatewaynr, txBuf, txIndex);
