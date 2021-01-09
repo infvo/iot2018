@@ -7,12 +7,28 @@
 #include <PubSubClient.h>
 // JSON, config
 #include <ArduinoJson.h>
-#include <FS.h>
-// for BMP280:
+#include <LittleFS.h>
 #include <Wire.h>
 #include <SPI.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
+// display
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+// display
+#define SCREEN_WIDTH 64 // OLED display width, in pixels
+#define SCREEN_HEIGHT 48 // OLED display height, in pixels
+//#define SCREEN_WIDTH 128 // OLED display width, in pixels
+//#define SCREEN_HEIGHT 64 // OLED display height, in pixels
+
+// Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
+// SCL GPIO5
+// SDA GPIO4
+// #define OLED_RESET     0  // GPIO0
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire);
+
+// bme (bmp)
 
 Adafruit_BME280 bme; // I2C
 
@@ -23,6 +39,7 @@ ESP8266WebServer server(80);
 WiFiClient espClient;
 PubSubClient client(espClient);
 
+String version = "wifi-node-xd 210109";
 String wifiSsid = "";
 String wifiPassword = "";
 boolean mqttActive = false;
@@ -40,7 +57,7 @@ const int button1 = D7;
 // configuration:
 
 bool loadConfig() {
-  File configFile = SPIFFS.open("/config.json", "r");
+  File configFile = LittleFS.open("/config.json", "r");
   if (!configFile) {
     Serial.println("Failed to open config file");
     return false;
@@ -60,41 +77,41 @@ bool loadConfig() {
   Serial.println("Load config file:");
   Serial.println(buf);  
 
-  StaticJsonBuffer<400> jsonBuffer;
-  JsonObject& json = jsonBuffer.parseObject(buf);
+  StaticJsonDocument<400> doc;
+  DeserializationError error = deserializeJson(doc, buf);
 
-  if (!json.success()) {
-    Serial.println("Failed to parse config file");
+  if (error) {
+    Serial.print("Failed to parse config file: ");
+    Serial.println(error.f_str());
     return false;
   }
 
-  wifiSsid = json.get<String>("wifi_ssid");
-  wifiPassword = json.get<String>("wifi_password");
-  mqttServer = json.get<String>("mqtt_broker");
-  mqttUser = json.get<String>("mqtt_user");
-  mqttPassword = json.get<String>("mqtt_password");
+  wifiSsid = doc["wifi_ssid"].as<String>();
+  wifiPassword = doc["wifi_password"].as<String>();
+  mqttServer = doc["mqtt_broker"].as<String>();
+  mqttUser = doc["mqtt_user"].as<String>();
+  mqttPassword = doc["mqtt_password"].as<String>();
   return true;
 }
 
 bool saveConfig() {
-  StaticJsonBuffer<400> jsonBuffer;
-  JsonObject& json = jsonBuffer.createObject();
-  json["wifi_ssid"] = wifiSsid;
-  json["wifi_password"] = wifiPassword;
-  json["mqtt_broker"] = mqttServer;
-  json["mqtt_user"] = mqttUser;
-  json["mqtt_password"] = mqttPassword;
+  StaticJsonDocument<400> doc;
+  doc["wifi_ssid"] = wifiSsid;
+  doc["wifi_password"] = wifiPassword;
+  doc["mqtt_broker"] = mqttServer;
+  doc["mqtt_user"] = mqttUser;
+  doc["mqtt_password"] = mqttPassword;
 
-  File configFile = SPIFFS.open("/config.json", "w");
+  File configFile = LittleFS.open("/config.json", "w");
   if (!configFile) {
     Serial.println("Failed to open config file for writing");
     return false;
   }
 
-  json.printTo(configFile);
+  serializeJson(doc, configFile);
   configFile.close();
   Serial.println("Saved configfile:");
-  json.printTo(Serial);
+  serializeJson(doc, Serial);
   Serial.println();
   return true;
 }
@@ -145,7 +162,7 @@ void handleSetup() {
        mqtt_password: <input type=\"text\" name=\"mqtt_password\" value=\"\"><br>\n\
        <input type=\"submit\" value=\"Submit\">\n\
     </form>\n\
-    <p> <a href=\"/\">Home</a> --- <a href=\"/reset\">[[Reset]]</a> </p>\n\
+    <p> <a href=\"/\">Home</a> </p>\n\
   </body>\n\
 </html>",
   nodeID.c_str(),
@@ -154,14 +171,6 @@ void handleSetup() {
   mqttUser.c_str(), mqttPassword.c_str()
           );
   server.send(200, "text/html", temp);
-}
-
-void handleReset() {
-  Serial.println("reset");
-  String html = "trying to connect upon reset...";
-  server.send(200, "text/html", html.c_str());
-  delay(1000);  
-  ESP.restart();
 }
 
 void handleSetupForm() {
@@ -305,51 +314,63 @@ long button1TimerStart = 0;
 long button1TimerPeriod = 1000L; // in millisecs
 
 void sensor0Publish() {
-  StaticJsonBuffer<400> jsonBuffer;
-  JsonObject& root = jsonBuffer.createObject();
+  StaticJsonDocument<400> doc;
+ 
   String msg;
-  root["nodeid"] = nodeID;
-  root["counter"] = counter;
+  doc["nodeid"] = nodeID;
+  doc["counter"] = counter;
   counter = counter + 1;
 
-  JsonObject& payload = root.createNestedObject("payload");
+  JsonObject payload = doc.createNestedObject("payload");
   
-  JsonObject& channel2 = payload.createNestedObject("2");
+  JsonObject channel2 = payload.createNestedObject("2");
   channel2["dIn"] = digitalRead(button0);   
-  JsonObject& channel3 = payload.createNestedObject("3");
+  JsonObject channel3 = payload.createNestedObject("3");
   channel3["dIn"] = digitalRead(button1);   
 
-  root.printTo(msg);
+  serializeJson(doc, msg); // appends!
   Serial.println(msg);
   client.publish(sensorTopic.c_str(), msg.c_str());
 }
 
+void sensor1Display() {
+  display.clearDisplay();
+  display.setCursor(0,0);
+  display.print("tmp:");
+  display.println(bme.readTemperature(), 1);
+  display.print("air:");
+  display.println(bme.readPressure()/100, 1);
+  display.print("hum:");
+  display.print((int) bme.readHumidity());
+  display.println("%");
+  display.display();
+}
+
 void sensor1Publish() {
-  StaticJsonBuffer<400> jsonBuffer;
-  JsonObject& root = jsonBuffer.createObject();
+ StaticJsonDocument<400> doc;
   String msg;
-  root["nodeid"] = nodeID;
-  root["counter"] = counter;
+  doc["nodeid"] = nodeID;
+  doc["counter"] = counter;
   counter = counter + 1;
 
-  JsonObject& payload = root.createNestedObject("payload");
+  JsonObject payload = doc.createNestedObject("payload");
   
-  JsonObject& channel0 = payload.createNestedObject("0");
+  JsonObject channel0 = payload.createNestedObject("0");
   channel0["dOut"] = digitalRead(led0);
-  JsonObject& channel1 = payload.createNestedObject("1");
+  JsonObject channel1 = payload.createNestedObject("1");
   channel1["dOut"] = digitalRead(led1);
   
-  JsonObject& channel4 = payload.createNestedObject("4");
+  JsonObject channel4 = payload.createNestedObject("4");
   channel4["temperature"] = (int) (bme.readTemperature() * 10);
-  JsonObject& channel5 = payload.createNestedObject("5");
+  JsonObject channel5 = payload.createNestedObject("5");
   channel5["barometer"] = (int) (bme.readPressure() / 10.0);
-  JsonObject& channel6 = payload.createNestedObject("6");
+  JsonObject channel6 = payload.createNestedObject("6");
   channel6["humidity"] = (int) (bme.readHumidity() * 2);
 
-  JsonObject& channel8 = payload.createNestedObject("8");
+  JsonObject channel8 = payload.createNestedObject("8");
   channel8["aIn"] = analogRead(A0);
   
-  root.printTo(msg);
+  serializeJson(doc, msg); // appends!
   Serial.println(msg);
   client.publish(sensorTopic.c_str(), msg.c_str());
 }
@@ -365,18 +386,19 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
   if (strcmp(topic, actuatorTopic.c_str())==0) {
     Serial.println("actuator message received");
-    StaticJsonBuffer<200> jsonBuffer;
-    JsonObject& root = jsonBuffer.parseObject((char*) payload);
-    if (root.success()) {
-      if (root.containsKey("0")) {
-        digitalWrite(led0, root["0"]["dOut"]);
+    StaticJsonDocument<200> doc;
+    DeserializationError error = deserializeJson(doc, (char*) payload);
+
+    if (!error) {
+      if (doc.containsKey("0")) {
+        digitalWrite(led0, doc["0"]["dOut"]);
       }
-      if (root.containsKey("1")) {
-        digitalWrite(led1, root["1"]["dOut"]);
+      if (doc.containsKey("1")) {
+        digitalWrite(led1, doc["1"]["dOut"]);
       }
       sensor1Publish();
     }
-  }
+  }  
 }
 
 void reconnect() {
@@ -439,7 +461,6 @@ void setupSTA() {
 void setupServer() {
   server.on("/setup", handleSetup);
   server.on("/setupform", handleSetupForm);
-  server.on("/reset", handleReset);
   server.on("/leds/0", handleLed0);
   server.on("/ledon", handleLedOn);
   server.on("/ledoff", handleLedOff);
@@ -457,18 +478,29 @@ void setupMQTT() {
   client.setCallback(mqttCallback);  
 }
 
+void setupDisplay() {
+   display.begin(SSD1306_SWITCHCAPVCC, 0x3c);  // initialize with the I2C addr 0x3C (for the 64x48);
+   display.clearDisplay();
+  
+//  display.setTextSize(1); (is default)
+   display.setTextColor(WHITE);
+   display.setCursor(0,0);
+   display.println(version);
+   display.display();
+}
+
 void setup() {
-  delay(1000);
-  Serial.begin(115200);
-  Serial.println();
-  Serial.println("[esp8266 iot-node v2081126c]");
   pinMode(LED_BUILTIN, OUTPUT);     // Initialize the BUILTIN_LED pin as an output
   pinMode(led0, OUTPUT);
   pinMode(led1, OUTPUT);
   pinMode(button0, INPUT);
-  if (digitalRead(button0) == HIGH) {
-    digitalWrite(led0, HIGH);
-  }
+  digitalWrite(led0, LOW);
+  delay(1000);
+  Serial.begin(115200);
+  Serial.println();
+  Serial.println(version);
+  setupDisplay();
+
   Wire.begin(D2, D1); // SDA, SCL: GPIO nrs - D2(GPIO4), D1(GPIO5) - I2C for BMP
 
   while (!bme.begin(0x76)) {
@@ -476,12 +508,12 @@ void setup() {
     delay(100);
     digitalWrite(LED_BUILTIN, HIGH); // active low: LED OFF 
     Serial.println("Could not find a valid BME280 sensor, check wiring!");
-    delay(10000);
+    delay(1000);
   }  
   
 // get configuration
   boolean config_OK = false;
-  if (SPIFFS.begin()) {
+  if (LittleFS.begin()) {
    config_OK = loadConfig();
   } else {
     Serial.println("Failed to mount file system");
@@ -500,7 +532,24 @@ void setup() {
 
 // start as wifi access point or as station
   if (digitalRead(button0) || !config_OK) {
-    digitalWrite(led1, HIGH);
+    digitalWrite(led0, HIGH);
+    if (digitalRead(button1) || !LittleFS.begin()) {
+       Serial.println();
+       Serial.println("Format file system");
+       display.clearDisplay();
+       display.setCursor(0,0);
+       display.println("Format FS");
+       display.display();       
+       LittleFS.format();
+       if (LittleFS.begin()) {
+         Serial.println("File system mounted");         
+       }
+       wifiSsid = "";  // clear configuration
+       wifiPassword = "";
+       mqttServer = "";
+       mqttUser = "";
+       mqttPassword = "";      
+    }
     setupAP();
     mqttActive = false;  
   } else {
@@ -508,6 +557,13 @@ void setup() {
   }
   Serial.print("My IP address: ");
   Serial.println(myIP);
+
+  display.println();
+  display.print("ID ");
+  display.println(nodeID);
+  display.print("ip ");
+  display.println(myIP);
+  display.display();
 
   setupServer();
   

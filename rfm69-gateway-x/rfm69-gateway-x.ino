@@ -392,7 +392,7 @@ void rfReceive(uint8_t *msg, uint8_t len, uint8_t rssi) {
     unsigned int counter = (msg[5] << 8) | msg[6];
     // check counter incrementing !!!
 
-    StaticJsonBuffer<512> jsonBuffer;
+    StaticJsonBuffer<1024> jsonBuffer;
     JsonObject& root = jsonBuffer.createObject();
     
     // metadata:
@@ -481,13 +481,11 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);     // Initialize the BUILTIN_LED pin as an output
   pinMode(led0, OUTPUT);
   pinMode(button0, INPUT);
-  if (digitalRead(button0) == LOW) {  // active low button!
-    digitalWrite(led0, HIGH);
-  }
-
+  digitalWrite(led0, LOW);
+  delay(1000);
   Serial.begin(115200);
   Serial.println();
-  Serial.println("[iot2018-gateway v0.1 (LPP)]");
+  Serial.println("[iot2018-rfm69-gateway-x 190403 (LPP)]");
 
   Serial.print("Max mqtt pkt size: ");
   Serial.println(MQTT_MAX_PACKET_SIZE);
@@ -512,17 +510,18 @@ void setup() {
   nodeID = String(mac[4] * 256 + mac[5], HEX);
 
 // start as wifi access point or as station
+  if (digitalRead(button0) == LOW) {  // active LOW
+    delay(100); // debounce
+  }
   if (digitalRead(button0) == LOW || !config_OK) {
-    digitalWrite(led0, LOW);
+    digitalWrite(led0, HIGH);
     setupAP();
-    mqttActive = false;  
+    mqttActive = false; 
   } else {
     setupSTA();
   }
   Serial.print("My IP address: ");
   Serial.println(myIP);
-
-
 
   setupServer();
   
