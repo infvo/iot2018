@@ -53,51 +53,49 @@ long button1TimerPeriod = 1000L; // in millisecs
 // JSON
 
 void sensor0Publish() {
-  StaticJsonBuffer<400> jsonBuffer;
-  JsonObject& root = jsonBuffer.createObject();
+  StaticJsonDocument<400> doc;
   String msg;
-  root["nodeid"] = nodeID;
-  root["counter"] = counter;
+  doc["nodeid"] = nodeID;
+  doc["counter"] = counter;
   counter = counter + 1;
 
-  JsonObject& payload = root.createNestedObject("payload");
+  JsonObject payload = doc.createNestedObject("payload");
   
-  JsonObject& channel2 = payload.createNestedObject("2");
+  JsonObject channel2 = payload.createNestedObject("2");
   channel2["dIn"] = digitalRead(button0);   
-  JsonObject& channel3 = payload.createNestedObject("3");
+  JsonObject channel3 = payload.createNestedObject("3");
   channel3["dIn"] = digitalRead(button1);   
 
-  root.printTo(msg);
+  serializeJson(doc, msg); // appends!
   Serial.println(msg);
   client.publish(sensorTopic.c_str(), msg.c_str());
 }
 
 void sensor1Publish() {
-  StaticJsonBuffer<400> jsonBuffer;
-  JsonObject& root = jsonBuffer.createObject();
+  StaticJsonDocument<400> doc;
   String msg;
-  root["nodeid"] = nodeID;
-  root["counter"] = counter;
+  doc["nodeid"] = nodeID;
+  doc["counter"] = counter;
   counter = counter + 1;
 
-  JsonObject& payload = root.createNestedObject("payload");
+  JsonObject payload = doc.createNestedObject("payload");
   
-  JsonObject& channel0 = payload.createNestedObject("0");
+  JsonObject channel0 = payload.createNestedObject("0");
   channel0["dOut"] = digitalRead(led0);
-  JsonObject& channel1 = payload.createNestedObject("1");
+  JsonObject channel1 = payload.createNestedObject("1");
   channel1["dOut"] = digitalRead(led1);
   
-  JsonObject& channel4 = payload.createNestedObject("4");
+  JsonObject channel4 = payload.createNestedObject("4");
   channel4["temperature"] = (int) (bme.readTemperature() * 10);
-  JsonObject& channel5 = payload.createNestedObject("5");
+  JsonObject channel5 = payload.createNestedObject("5");
   channel5["barometer"] = (int) (bme.readPressure() / 10.0);
-  JsonObject& channel6 = payload.createNestedObject("6");
+  JsonObject channel6 = payload.createNestedObject("6");
   channel6["humidity"] = (int) (bme.readHumidity() * 2);
 
-  JsonObject& channel8 = payload.createNestedObject("8");
+  JsonObject channel8 = payload.createNestedObject("8");
   channel8["aIn"] = analogRead(A0);
   
-  root.printTo(msg);
+  serializeJson(doc, msg); // appends!
   Serial.println(msg);
   client.publish(sensorTopic.c_str(), msg.c_str());
 }
@@ -142,14 +140,15 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
   if (strcmp(topic, actuatorTopic.c_str())==0) {
     Serial.println("actuator message received");
-    StaticJsonBuffer<200> jsonBuffer;
-    JsonObject& root = jsonBuffer.parseObject((char*) payload);
-    if (root.success()) {
-      if (root.containsKey("0")) {
-        digitalWrite(led0, root["0"]["dOut"]);
+    StaticJsonDocument<200> doc;
+    DeserializationError error = deserializeJson(doc, (char*) payload);
+
+    if (!error) {
+      if (doc.containsKey("0")) {
+        digitalWrite(led0, doc["0"]["dOut"]);
       }
-      if (root.containsKey("1")) {
-        digitalWrite(led1, root["1"]["dOut"]);
+      if (doc.containsKey("1")) {
+        digitalWrite(led1, doc["1"]["dOut"]);
       }
       sensor1Publish();
     }

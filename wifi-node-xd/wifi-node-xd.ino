@@ -7,8 +7,7 @@
 #include <PubSubClient.h>
 // JSON, config
 #include <ArduinoJson.h>
-#include <FS.h>
-// for BMP280:
+#include <LittleFS.h>
 #include <Wire.h>
 #include <SPI.h>
 #include <Adafruit_Sensor.h>
@@ -40,7 +39,7 @@ ESP8266WebServer server(80);
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-String version = "wifi-node-xd 190326";
+String version = "wifi-node-xd 210109";
 String wifiSsid = "";
 String wifiPassword = "";
 boolean mqttActive = false;
@@ -58,7 +57,7 @@ const int button1 = D7;
 // configuration:
 
 bool loadConfig() {
-  File configFile = SPIFFS.open("/config.json", "r");
+  File configFile = LittleFS.open("/config.json", "r");
   if (!configFile) {
     Serial.println("Failed to open config file");
     return false;
@@ -78,41 +77,41 @@ bool loadConfig() {
   Serial.println("Load config file:");
   Serial.println(buf);  
 
-  StaticJsonBuffer<400> jsonBuffer;
-  JsonObject& json = jsonBuffer.parseObject(buf);
+  StaticJsonDocument<400> doc;
+  DeserializationError error = deserializeJson(doc, buf);
 
-  if (!json.success()) {
-    Serial.println("Failed to parse config file");
+  if (error) {
+    Serial.print("Failed to parse config file: ");
+    Serial.println(error.f_str());
     return false;
   }
 
-  wifiSsid = json.get<String>("wifi_ssid");
-  wifiPassword = json.get<String>("wifi_password");
-  mqttServer = json.get<String>("mqtt_broker");
-  mqttUser = json.get<String>("mqtt_user");
-  mqttPassword = json.get<String>("mqtt_password");
+  wifiSsid = doc["wifi_ssid"].as<String>();
+  wifiPassword = doc["wifi_password"].as<String>();
+  mqttServer = doc["mqtt_broker"].as<String>();
+  mqttUser = doc["mqtt_user"].as<String>();
+  mqttPassword = doc["mqtt_password"].as<String>();
   return true;
 }
 
 bool saveConfig() {
-  StaticJsonBuffer<400> jsonBuffer;
-  JsonObject& json = jsonBuffer.createObject();
-  json["wifi_ssid"] = wifiSsid;
-  json["wifi_password"] = wifiPassword;
-  json["mqtt_broker"] = mqttServer;
-  json["mqtt_user"] = mqttUser;
-  json["mqtt_password"] = mqttPassword;
+  StaticJsonDocument<400> doc;
+  doc["wifi_ssid"] = wifiSsid;
+  doc["wifi_password"] = wifiPassword;
+  doc["mqtt_broker"] = mqttServer;
+  doc["mqtt_user"] = mqttUser;
+  doc["mqtt_password"] = mqttPassword;
 
-  File configFile = SPIFFS.open("/config.json", "w");
+  File configFile = LittleFS.open("/config.json", "w");
   if (!configFile) {
     Serial.println("Failed to open config file for writing");
     return false;
   }
 
-  json.printTo(configFile);
+  serializeJson(doc, configFile);
   configFile.close();
   Serial.println("Saved configfile:");
-  json.printTo(Serial);
+  serializeJson(doc, Serial);
   Serial.println();
   return true;
 }
@@ -315,21 +314,21 @@ long button1TimerStart = 0;
 long button1TimerPeriod = 1000L; // in millisecs
 
 void sensor0Publish() {
-  StaticJsonBuffer<400> jsonBuffer;
-  JsonObject& root = jsonBuffer.createObject();
+  StaticJsonDocument<400> doc;
+ 
   String msg;
-  root["nodeid"] = nodeID;
-  root["counter"] = counter;
+  doc["nodeid"] = nodeID;
+  doc["counter"] = counter;
   counter = counter + 1;
 
-  JsonObject& payload = root.createNestedObject("payload");
+  JsonObject payload = doc.createNestedObject("payload");
   
-  JsonObject& channel2 = payload.createNestedObject("2");
+  JsonObject channel2 = payload.createNestedObject("2");
   channel2["dIn"] = digitalRead(button0);   
-  JsonObject& channel3 = payload.createNestedObject("3");
+  JsonObject channel3 = payload.createNestedObject("3");
   channel3["dIn"] = digitalRead(button1);   
 
-  root.printTo(msg);
+  serializeJson(doc, msg); // appends!
   Serial.println(msg);
   client.publish(sensorTopic.c_str(), msg.c_str());
 }
@@ -348,33 +347,30 @@ void sensor1Display() {
 }
 
 void sensor1Publish() {
-  StaticJsonBuffer<400> jsonBuffer;
-  JsonObject& root = jsonBuffer.createObject();
+ StaticJsonDocument<400> doc;
   String msg;
-  root["nodeid"] = nodeID;
-  root["counter"] = counter;
+  doc["nodeid"] = nodeID;
+  doc["counter"] = counter;
   counter = counter + 1;
 
-  sensor1Display();
-
-  JsonObject& payload = root.createNestedObject("payload");
+  JsonObject payload = doc.createNestedObject("payload");
   
-  JsonObject& channel0 = payload.createNestedObject("0");
+  JsonObject channel0 = payload.createNestedObject("0");
   channel0["dOut"] = digitalRead(led0);
-  JsonObject& channel1 = payload.createNestedObject("1");
+  JsonObject channel1 = payload.createNestedObject("1");
   channel1["dOut"] = digitalRead(led1);
   
-  JsonObject& channel4 = payload.createNestedObject("4");
+  JsonObject channel4 = payload.createNestedObject("4");
   channel4["temperature"] = (int) (bme.readTemperature() * 10);
-  JsonObject& channel5 = payload.createNestedObject("5");
+  JsonObject channel5 = payload.createNestedObject("5");
   channel5["barometer"] = (int) (bme.readPressure() / 10.0);
-  JsonObject& channel6 = payload.createNestedObject("6");
+  JsonObject channel6 = payload.createNestedObject("6");
   channel6["humidity"] = (int) (bme.readHumidity() * 2);
 
-  JsonObject& channel8 = payload.createNestedObject("8");
+  JsonObject channel8 = payload.createNestedObject("8");
   channel8["aIn"] = analogRead(A0);
   
-  root.printTo(msg);
+  serializeJson(doc, msg); // appends!
   Serial.println(msg);
   client.publish(sensorTopic.c_str(), msg.c_str());
 }
@@ -390,18 +386,19 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
   if (strcmp(topic, actuatorTopic.c_str())==0) {
     Serial.println("actuator message received");
-    StaticJsonBuffer<200> jsonBuffer;
-    JsonObject& root = jsonBuffer.parseObject((char*) payload);
-    if (root.success()) {
-      if (root.containsKey("0")) {
-        digitalWrite(led0, root["0"]["dOut"]);
+    StaticJsonDocument<200> doc;
+    DeserializationError error = deserializeJson(doc, (char*) payload);
+
+    if (!error) {
+      if (doc.containsKey("0")) {
+        digitalWrite(led0, doc["0"]["dOut"]);
       }
-      if (root.containsKey("1")) {
-        digitalWrite(led1, root["1"]["dOut"]);
+      if (doc.containsKey("1")) {
+        digitalWrite(led1, doc["1"]["dOut"]);
       }
       sensor1Publish();
     }
-  }
+  }  
 }
 
 void reconnect() {
@@ -516,7 +513,7 @@ void setup() {
   
 // get configuration
   boolean config_OK = false;
-  if (SPIFFS.begin()) {
+  if (LittleFS.begin()) {
    config_OK = loadConfig();
   } else {
     Serial.println("Failed to mount file system");
@@ -536,15 +533,15 @@ void setup() {
 // start as wifi access point or as station
   if (digitalRead(button0) || !config_OK) {
     digitalWrite(led0, HIGH);
-    if (digitalRead(button1) || !SPIFFS.begin()) {
+    if (digitalRead(button1) || !LittleFS.begin()) {
        Serial.println();
        Serial.println("Format file system");
        display.clearDisplay();
        display.setCursor(0,0);
        display.println("Format FS");
        display.display();       
-       SPIFFS.format();
-       if (SPIFFS.begin()) {
+       LittleFS.format();
+       if (LittleFS.begin()) {
          Serial.println("File system mounted");         
        }
        wifiSsid = "";  // clear configuration
